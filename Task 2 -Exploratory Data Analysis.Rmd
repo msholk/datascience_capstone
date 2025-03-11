@@ -82,9 +82,69 @@ show_table(basic_report)
 ```
 
 
-Questions to consider
+### Word frequencies
 
-Some words are more frequent than others - what are the distributions of word frequencies? 
+**Some words are more frequent than others - what are the distributions of word frequencies?** 
+
+```{r}
+# Read a sample of 10,000 lines from all files
+sample_size <- 10000
+text_data <- unlist(lapply(filelistFullPath, function(x) {
+  readLines(x, n = sample_size, warn = FALSE)
+}))
+
+
+```
+```{r, message=FALSE, warning=FALSE}
+library(tm) #Text Mining Package
+CACHE_FILE <- "corpus"
+loadObjects(CACHE_FILE)
+if (!exists(CACHE_FILE) || is.null(corpus)) 
+{
+  # Create a Corpus
+  corpus <- Corpus(VectorSource(text_data))
+  
+  # Clean Text Data
+  corpus <- tm_map(corpus, content_transformer(tolower)) # Convert to lowercase
+  corpus <- tm_map(corpus, removePunctuation)            # Remove punctuation
+  corpus <- tm_map(corpus, removeNumbers)               # Remove numbers
+  corpus <- tm_map(corpus, removeWords, stopwords("en")) # Remove stopwords
+  corpus <- tm_map(corpus, stripWhitespace)             # Remove extra spaces
+  
+  # Create Term-Document Matrix
+  tdm <- TermDocumentMatrix(corpus)
+  word_freq <- sort(rowSums(as.matrix(tdm)), decreasing = TRUE)
+  word_freq_df <- data.frame(word = names(word_freq), freq = word_freq)
+  
+  save_objects(c("corpus","tdm","word_freq","word_freq_df"), CACHE_FILE)
+}
+
+```
+Word Cloud of Most Frequent Words
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(wordcloud)
+
+wordcloud(words = word_freq_df$word, freq = word_freq_df$freq, min.freq = 10,
+          max.words = 100, colors = brewer.pal(8, "Dark2"), random.order = FALSE)
+
+
+```
+
+Bar Plot of Top 20 Words
+
+```{r, echo=FALSE}
+# --- PLOT : Bar Plot of Top 20 Words ---
+top_n <- 20
+ggplot(head(word_freq_df, top_n), aes(x = reorder(word, -freq), y = freq)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Words", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
 
 What are the frequencies of 2-grams and 3-grams in the dataset? 
 
@@ -94,11 +154,7 @@ How do you evaluate how many of the words come from foreign languages?
 
 Can you think of a way to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
-```
 
 ## Task 3 - Modeling
 
