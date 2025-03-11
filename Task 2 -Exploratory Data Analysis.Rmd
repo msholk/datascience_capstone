@@ -23,6 +23,9 @@ loadObjects <- function(fileName) {
     load(fileName, envir = .GlobalEnv)
   }
 }
+save_objects <- function(objects, file_name) {
+  save(list = objects, file = paste0(file_name, ".RData"))
+}
 # Function to format numbers with thousand separators
 format_number <- function(x) {
   if (is.numeric(x)) {
@@ -49,25 +52,32 @@ filelist <- list.files(dir)
 filelistFullPath <- file.path(dir, filelist)
 CACHE_FILE <- "basic_report"
 loadObjects(CACHE_FILE)
-# if (!exists(CACHE_FILE) || is.null(basic_report)) 
+if (!exists(CACHE_FILE) || is.null(basic_report)) 
 {
   basic_report <- lapply(filelistFullPath, function(x) round(file.info(x)[1]/1024/1024))
   basic_report <- as.data.frame(basic_report)
-  # Count lines per file
-  line_counts <- sapply(filelistFullPath, function(x) length(readLines(x,n=100, warn = FALSE)))
+  # Initialize lists for line and word counts
+  line_counts <- c()
+  word_counts <- c()
   
-  # Count words per file
-  word_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) sum(str_count(readLines(x,n=100, warn = FALSE), "\\S+")))
-  
+  # Read first 100 lines and count lines & words in a single pass
+  for (file in filelistFullPath) {
+    lines <- readLines(file, warn = FALSE)  
+    line_counts <- c(line_counts, length(lines))  # Count lines
+    word_counts <- c(word_counts, sum(str_count(lines, "\\S+")))  # Count words
+  }  
 
   names(basic_report) <- gsub("\\.txt$", "", filelist)
   basic_report <- rbind(basic_report, line_counts, word_counts)
   basic_report <- as.data.frame(lapply(basic_report, format_number))
   rownames(basic_report) <- c("size(MB)", "Lines", "Words")
-  # save(basic_report, file = paste0(CACHE_FILE,".RData"))
+  save_objects(c("basic_report"), CACHE_FILE)
 }
 
 
+
+```
+```{r, echo=FALSE}
 show_table(basic_report)
 ```
 
