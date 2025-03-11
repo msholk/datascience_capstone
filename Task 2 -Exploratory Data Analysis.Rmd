@@ -94,27 +94,32 @@ show_table(basic_report)
 Read a sample of 10,000 lines from all files
 ```{r read sample text}
 set.seed(12345)
-sample_size <- 10000
-# Define function to read a random sample of lines
-read_random_sample <- function(file_path, sample_size = 10000) {
-  # Count total lines in the file
-  total_lines <- basic_report["Lines", gsub("\\.txt$", "", basename(file_path))] # Get total lines from `basic_report`
+CACHE_FILE <- "text_data"
+loadObjects(CACHE_FILE)
+if (!exists(CACHE_FILE) || is.null(text_data)) 
+{
+  sample_size <- 10000
+  # Define function to read a random sample of lines
+  read_random_sample <- function(file_path, sample_size = 10000) {
+    # Count total lines in the file
+    total_lines <- basic_report["Lines", gsub("\\.txt$", "", basename(file_path))] # Get total lines from `basic_report`
+    
+    # Convert from character to numeric (since `basic_report` stores formatted numbers)
+    total_lines <- as.numeric(gsub(",", "", total_lines))
+    
+    # Select random line numbers
+    sampled_lines <- sort(sample(1:total_lines, min(sample_size, total_lines)))
+    
+    # Read only the sampled lines
+    text_data <- readLines(file_path, warn = FALSE)[sampled_lines]
+    
+    return(text_data)
+  }
   
-  # Convert from character to numeric (since `basic_report` stores formatted numbers)
-  total_lines <- as.numeric(gsub(",", "", total_lines))
-  
-  # Select random line numbers
-  sampled_lines <- sort(sample(1:total_lines, min(sample_size, total_lines)))
-  
-  # Read only the sampled lines
-  text_data <- readLines(file_path, warn = FALSE)[sampled_lines]
-  
-  return(text_data)
+  # Read random lines from all files
+  text_data <- unlist(lapply(filelistFullPath, read_random_sample))
+  save_objects(c("text_data"), CACHE_FILE)
 }
-
-# Read random lines from all files
-text_data <- unlist(lapply(filelistFullPath, read_random_sample))
-
 
 ```
 Analyze word frequencies
@@ -213,33 +218,35 @@ drawCloud <- function(ds,title) {
 drawCloud(bigram_df)
 drawCloud(trigram_df)
 ```
-```{r Gram charts, echo=FALSE}
-# --- PLOT 1: Top 20 Bigrams ---
-# ggplot(head(bigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
-#   geom_bar(stat = "identity", fill = "steelblue") +
-#   theme_minimal() +
-#   labs(title = "Top 20 Most Frequent Bigrams", x = "Bigrams", y = "Frequency") +
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# 
-# # --- PLOT 2: Top 20 Trigrams ---
-# ggplot(head(trigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
-#   geom_bar(stat = "identity", fill = "steelblue") +
-#   theme_minimal() +
-#   labs(title = "Top 20 Most Frequent Trigrams", x = "Trigrams", y = "Frequency") +
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-# 
-# # # --- PLOT 3: Word Cloud for Bigrams ---
-# wordcloud(words = bigram_df$ngram, freq = bigram_df$freq, min.freq = 10,
-#           max.words = 100, colors = brewer.pal(8, "Dark2"), random.order = FALSE)
-# # 
-# # # --- PLOT 4: Word Cloud for Trigrams ---
-# wordcloud(words = trigram_df$ngram, freq = trigram_df$freq, min.freq = 10,
-#           max.words = 100, colors = brewer.pal(8, "Set3"), random.order = FALSE)
+
+
+**How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%? **
+
+To determine how many unique words are needed to cover 50% and 90% of all word instances in the dataset, we need to:
+
+ - We'll use word frequency table from the corpus.
+ - Sort words by frequency in descending order.
+ - Calculate cumulative word coverage to find the smallest set of words that make up 50% and 90% of total word occurrences.
+
+```{r, warning=FALSE, message=FALSE}
+  library(dplyr)
+  # Compute cumulative sum and coverage percentages
+  total_words <- sum(word_freq_df$freq)
+  # Sort words by frequency and compute cumulative coverage
+  word_freq_df <- word_freq_df %>%
+    arrange(desc(freq)) %>%  # Ensure sorting before cumulative sum
+    mutate(cumulative_freq = cumsum(freq),
+           coverage = cumulative_freq / total_words)
+  
+  # Find word count needed to cover 50% & 90% of instances
+  words_50 <- nrow(word_freq_df[word_freq_df$coverage <= 0.50, ])
+  words_90 <- nrow(word_freq_df[word_freq_df$coverage <= 0.90, ])
 ```
 
+Then to cover   
+50% we need **`r words_50`** words.  
+90% we need **`r words_90`** words.
 
-
-How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%? 
 
 How do you evaluate how many of the words come from foreign languages? 
 
