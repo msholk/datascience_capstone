@@ -46,14 +46,15 @@ https://www.coursera.org/learn/data-science-project/supplement/BePVz/task-2-expl
 ```{r}
 dir <- c("Coursera-SwiftKey/final/en_US")
 filelist <- list.files(dir)
+filelistFullPath <- file.path(dir, filelist)
 CACHE_FILE <- "basic_report"
 loadObjects(CACHE_FILE)
 # if (!exists(CACHE_FILE) || is.null(basic_report)) 
 {
-  basic_report <- lapply(paste(dir, filelist, sep = "/"), function(x) round(file.info(x)[1]/1024/1024))
+  basic_report <- lapply(filelistFullPath, function(x) round(file.info(x)[1]/1024/1024))
   basic_report <- as.data.frame(basic_report)
   # Count lines per file
-  line_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) length(readLines(x,n=100, warn = FALSE)))
+  line_counts <- sapply(filelistFullPath, function(x) length(readLines(x,n=100, warn = FALSE)))
   
   # Count words per file
   word_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) sum(str_count(readLines(x,n=100, warn = FALSE), "\\S+")))
