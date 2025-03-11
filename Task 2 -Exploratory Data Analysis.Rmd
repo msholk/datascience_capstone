@@ -168,14 +168,16 @@ TrigramTokenizer <- function(x) {
 
 # Create Term-Document Matrices for Bigrams and Trigrams
 tdm_bigram <- TermDocumentMatrix(VCorpus(VectorSource(text_clean)), control = list(tokenize = BigramTokenizer))
-tdm_trigram <- TermDocumentMatrix(Corpus(VectorSource(text_clean)), control = list(tokenize = TrigramTokenizer))
+tdm_trigram <- TermDocumentMatrix(VCorpus(VectorSource(text_clean)), control = list(tokenize = TrigramTokenizer))
 
 # Convert Matrices to Data Frames
 bigram_freq <- sort(rowSums(as.matrix(tdm_bigram)), decreasing = TRUE)
 trigram_freq <- sort(rowSums(as.matrix(tdm_trigram)), decreasing = TRUE)
 
 bigram_df <- data.frame(ngram = names(bigram_freq), freq = bigram_freq)
+head(bigram_df)
 trigram_df <- data.frame(ngram = names(trigram_freq), freq = trigram_freq)
+head(trigram_df)
 
 # --- PLOT 1: Top 20 Bigrams ---
 ggplot(head(bigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
