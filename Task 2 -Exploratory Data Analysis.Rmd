@@ -11,7 +11,7 @@ library(knitr)
 library(kableExtra)
 library(stringr) ## read lines, count words
 ```
-```{r, echo=FALSE}
+```{r Cache_functions, echo=FALSE}
 # Function to load saved R objects from a .RData file if the file exists
 loadObjects <- function(fileName) {
   # Append ".RData" extension to the filename
@@ -52,7 +52,7 @@ show_table <- function(report) {
 https://www.coursera.org/learn/data-science-project/supplement/BePVz/task-2-exploratory-data-analysis
 
 
-```{r}
+```{r basic_report}
 dir <- c("Coursera-SwiftKey/final/en_US")
 filelist <- list.files(dir)
 filelistFullPath <- file.path(dir, filelist)
@@ -83,7 +83,7 @@ if (!exists(CACHE_FILE) || is.null(basic_report))
 
 
 ```
-```{r, echo=FALSE}
+```{r show_basic_report, echo=FALSE}
 show_table(basic_report)
 ```
 
@@ -91,17 +91,35 @@ show_table(basic_report)
 ### Word frequencies
 
 **Some words are more frequent than others - what are the distributions of word frequencies?** 
-
-```{r}
-# Read a sample of 10,000 lines from all files
+Read a sample of 10,000 lines from all files
+```{r read sample text}
+set.seed(12345)
 sample_size <- 10000
-text_data <- unlist(lapply(filelistFullPath, function(x) {
-  readLines(x, n = sample_size, warn = FALSE)
-}))
+# Define function to read a random sample of lines
+read_random_sample <- function(file_path, sample_size = 10000) {
+  # Count total lines in the file
+  total_lines <- basic_report["Lines", gsub("\\.txt$", "", basename(file_path))] # Get total lines from `basic_report`
+  
+  # Convert from character to numeric (since `basic_report` stores formatted numbers)
+  total_lines <- as.numeric(gsub(",", "", total_lines))
+  
+  # Select random line numbers
+  sampled_lines <- sort(sample(1:total_lines, min(sample_size, total_lines)))
+  
+  # Read only the sampled lines
+  text_data <- readLines(file_path, warn = FALSE)[sampled_lines]
+  
+  return(text_data)
+}
+
+# Read random lines from all files
+text_data <- unlist(lapply(filelistFullPath, read_random_sample))
 
 
 ```
-```{r, message=FALSE, warning=FALSE}
+Analyze word frequencies
+
+```{r Analyze word frequencies, message=FALSE, warning=FALSE}
 library(tm) #Text Mining Package
 CACHE_FILE <- "corpus"
 loadObjects(CACHE_FILE)
@@ -127,7 +145,7 @@ if (!exists(CACHE_FILE) || is.null(corpus))
 
 ```
 Word Cloud of Most Frequent Words
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r Word Cloud, echo=FALSE, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(wordcloud)
 
@@ -139,7 +157,7 @@ wordcloud(words = word_freq_df$word, freq = word_freq_df$freq, min.freq = 10,
 
 Bar Plot of Top 20 Words
 
-```{r, echo=FALSE}
+```{r Bar Plot of Top 20 Words, echo=FALSE}
 # --- PLOT : Bar Plot of Top 20 Words ---
 top_n <- 20
 ggplot(head(word_freq_df, top_n), aes(x = reorder(word, -freq), y = freq)) +
@@ -153,54 +171,72 @@ ggplot(head(word_freq_df, top_n), aes(x = reorder(word, -freq), y = freq)) +
 
 
 **What are the frequencies of 2-grams and 3-grams in the dataset?**
-```{r, warning=FALSE}
+```{r 2-grams and 3-grams, warning=FALSE}
 # Convert Corpus to Plain Text
-text_clean <- sapply(corpus, as.character)
-text_clean <- paste(text_clean, collapse = " ")
-
-# Define n-gram Tokenizers
-BigramTokenizer <- function(x) {
-  unlist(lapply(ngrams(words(x), 2), paste, collapse = " "))
+CACHE_FILE <- "ngrams"
+loadObjects(CACHE_FILE)
+if (!exists("bigram_df") || is.null(bigram_df)) 
+{
+  text_clean <- sapply(corpus, as.character)
+  text_clean <- paste(text_clean, collapse = " ")
+  
+  nGram <- function (wordsLength) {
+    tokenizer <- function(x) {
+      unlist(lapply(ngrams(words(x), wordsLength), paste, collapse = " "))
+    }
+    # Create Term-Document Matrices
+    tdm_ngram <- TermDocumentMatrix(VCorpus(VectorSource(text_clean)), control = list(tokenize = tokenizer))
+    # Convert Matrices to Data Frames
+    ngram_freq <- sort(rowSums(as.matrix(tdm_ngram)), decreasing = TRUE)
+    ngram_df <- data.frame(ngram = names(ngram_freq), freq = ngram_freq)
+  }
+  bigram_df <<- nGram(2)
+  trigram_df <<- nGram(3)
+  save_objects(c("bigram_df","trigram_df"), CACHE_FILE)
 }
-TrigramTokenizer <- function(x) {
-  unlist(lapply(ngrams(words(x), 3), paste, collapse = " "))
+drawBars <- function(ds,title) {
+  ggplot(head(ds, 20), aes(x = reorder(ngram, -freq), y = freq)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(title = title, x = "", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 }
 
-# Create Term-Document Matrices for Bigrams and Trigrams
-tdm_bigram <- TermDocumentMatrix(VCorpus(VectorSource(text_clean)), control = list(tokenize = BigramTokenizer))
-tdm_trigram <- TermDocumentMatrix(VCorpus(VectorSource(text_clean)), control = list(tokenize = TrigramTokenizer))
+drawBars(bigram_df,"Top 20 Most Frequent Bigrams")
+drawBars(trigram_df,"Top 20 Most Frequent Trigrams")
 
-# Convert Matrices to Data Frames
-bigram_freq <- sort(rowSums(as.matrix(tdm_bigram)), decreasing = TRUE)
-trigram_freq <- sort(rowSums(as.matrix(tdm_trigram)), decreasing = TRUE)
+drawCloud <- function(ds,title) {
+  wordcloud(words = ds$ngram, freq = ds$freq, min.freq = 10,
+            max.words = 100, colors = brewer.pal(8, "Dark2"), random.order = FALSE)
+}
 
-bigram_df <- data.frame(ngram = names(bigram_freq), freq = bigram_freq)
-head(bigram_df)
-trigram_df <- data.frame(ngram = names(trigram_freq), freq = trigram_freq)
-head(trigram_df)
-
+drawCloud(bigram_df)
+drawCloud(trigram_df)
+```
+```{r Gram charts, echo=FALSE}
 # --- PLOT 1: Top 20 Bigrams ---
-ggplot(head(bigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  theme_minimal() +
-  labs(title = "Top 20 Most Frequent Bigrams", x = "Bigrams", y = "Frequency") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-# --- PLOT 2: Top 20 Trigrams ---
-ggplot(head(trigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  theme_minimal() +
-  labs(title = "Top 20 Most Frequent Trigrams", x = "Trigrams", y = "Frequency") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# ggplot(head(bigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
+#   geom_bar(stat = "identity", fill = "steelblue") +
+#   theme_minimal() +
+#   labs(title = "Top 20 Most Frequent Bigrams", x = "Bigrams", y = "Frequency") +
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 # 
-# # --- PLOT 3: Word Cloud for Bigrams ---
+# # --- PLOT 2: Top 20 Trigrams ---
+# ggplot(head(trigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
+#   geom_bar(stat = "identity", fill = "steelblue") +
+#   theme_minimal() +
+#   labs(title = "Top 20 Most Frequent Trigrams", x = "Trigrams", y = "Frequency") +
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# 
+# # # --- PLOT 3: Word Cloud for Bigrams ---
 # wordcloud(words = bigram_df$ngram, freq = bigram_df$freq, min.freq = 10,
 #           max.words = 100, colors = brewer.pal(8, "Dark2"), random.order = FALSE)
-# 
-# # --- PLOT 4: Word Cloud for Trigrams ---
+# # 
+# # # --- PLOT 4: Word Cloud for Trigrams ---
 # wordcloud(words = trigram_df$ngram, freq = trigram_df$freq, min.freq = 10,
 #           max.words = 100, colors = brewer.pal(8, "Set3"), random.order = FALSE)
 ```
+
 
 
 How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%? 
