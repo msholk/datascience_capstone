@@ -23,8 +23,13 @@ loadObjects <- function(fileName) {
     load(fileName, envir = .GlobalEnv)
   }
 }
+# Function to format numbers with thousand separators
 format_number <- function(x) {
-  format(x, big.mark = ",", scientific = FALSE)
+  if (is.numeric(x)) {
+    format(x, big.mark = ",", scientific = FALSE)
+  } else {
+    x
+  }
 }
 ```
 
@@ -42,26 +47,19 @@ loadObjects(CACHE_FILE)
   basic_report <- lapply(paste(dir, filelist, sep = "/"), function(x) round(file.info(x)[1]/1024/1024))
   basic_report <- as.data.frame(basic_report)
   # Count lines per file
-  line_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) length(readLines(x, warn = FALSE)))
+  line_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) length(readLines(x,n=100, warn = FALSE)))
   
   # Count words per file
-  word_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) sum(str_count(readLines(x, warn = FALSE), "\\S+")))
+  word_counts <- sapply(paste(dir, filelist, sep = "/"), function(x) sum(str_count(readLines(x,n=100, warn = FALSE), "\\S+")))
   
-  basic_report <- as.data.frame(lapply(basic_report, format_number))
-  rownames(basic_report) <- NULL
-  names(basic_report) <- filelist
+
+  names(basic_report) <- gsub("\\.txt$", "", filelist)
   basic_report <- rbind(basic_report, line_counts, word_counts)
+  basic_report <- as.data.frame(lapply(basic_report, format_number))
   rownames(basic_report) <- c("size(MB)", "Lines", "Words")
-  save(basic_report, file = paste0(CACHE_FILE,".RData"))
+  # save(basic_report, file = paste0(CACHE_FILE,".RData"))
 }
-# Function to format numbers with thousand separators
-format_number <- function(x) {
-  if (is.numeric(x)) {
-    format(x, big.mark = ",", scientific = FALSE)
-  } else {
-    x
-  }
-}
+
 
 # Apply formatting to numeric columns in the table
 # basic_report <- as.data.frame(lapply(basic_report, format_number))
