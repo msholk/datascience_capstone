@@ -11,7 +11,7 @@ library(knitr)
 library(kableExtra)
 library(stringr) ## read lines, count words
 ```
-```{r}
+```{r, echo=FALSE}
 # Function to load saved R objects from a .RData file if the file exists
 loadObjects <- function(fileName) {
   # Append ".RData" extension to the filename
@@ -30,6 +30,12 @@ format_number <- function(x) {
   } else {
     x
   }
+}
+
+show_table <- function(report) {
+  kable(report, align = rep("r", ncol(report))) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  column_spec(1:ncol(report), border_right = "1px solid lightgray")
 }
 ```
 
@@ -61,11 +67,7 @@ loadObjects(CACHE_FILE)
 }
 
 
-# Apply formatting to numeric columns in the table
-# basic_report <- as.data.frame(lapply(basic_report, format_number))
-kable(basic_report, align = rep("r", ncol(basic_report))) %>%
-  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
-  column_spec(1:ncol(basic_report), border_right = "1px solid lightgray")
+show_table(basic_report)
 ```
 
 
