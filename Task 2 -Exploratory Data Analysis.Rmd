@@ -28,8 +28,6 @@ save_objects <- function(objects, file_name) {
     dir.create("cache", recursive = TRUE)
   } 
   filePath <- file.path("cache", paste0(file_name, ".RData"))
-  message(filePath)
-
   save(list = objects, file = filePath)
 }
 # Function to format numbers with thousand separators
@@ -41,8 +39,8 @@ format_number <- function(x) {
   }
 }
 
-show_table <- function(report) {
-  kable(report, align = rep("r", ncol(report))) %>%
+show_table <- function(report, rowNames = TRUE) {
+  kable(report, align = rep("r", ncol(report)), row.names = rowNames) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
   column_spec(1:ncol(report), border_right = "1px solid lightgray")
 }
@@ -248,11 +246,51 @@ Then to cover
 90% we need **`r words_90`** words.
 
 
-How do you evaluate how many of the words come from foreign languages? 
+**How do you evaluate how many of the words come from foreign languages?** 
+```{r}
+CACHE_FILE <- "detected_languages"
+loadObjects(CACHE_FILE)
+if (!exists(CACHE_FILE) || is.null(detected_languages)) 
+{
+  library(textcat)
+  
+  # Detect language of each text sample
+  detected_languages <- textcat(text_data)
+  
+  # Count foreign language occurrences
+  detected_languages <- as.data.frame(table(detected_languages))
+  save_objects(c("detected_languages"), CACHE_FILE)
+}
+colnames(detected_languages) <- c("Language", "Count")
+rownames(detected_languages) <- NULL
+detected_languages <- detected_languages[order(-detected_languages$Count), ]
+detected_languages <- head(detected_languages,10)
+show_table(detected_languages,FALSE)
 
-Can you think of a way to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
+```
 
 
+**Can you think of a way to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?**
+
+##### 1. Lemmatization: Reduce Word Variants
+Instead of treating "running", "ran", and "runs" as separate words, convert them to "run" to reduce dictionary size while keeping meaning.   
+`textstem:lemmatize_words()`
+
+##### 2. Phrase Detection (Collocations)!
+Some important phrases ("New York", "data science") should not be split into separate words. Detecting collocations ensures that frequently co-occurring words are treated as single units.  
+`quanteda:tokens(),textstat_collocations()`
+
+##### 3. Word Embeddings (Finding Similar Words)
+If a word does not appear in the dictionary, embeddings can find a similar known word.
+`word2vec:read.wordvectors(),nearest_neighbors()`
+
+##### 4. Spelling Normalization (Fuzzy Matching)!
+Typos and misspellings reduce coverage. Use fuzzy matching to map misspelled words to known words.
+`hunspell:hunspell_suggest()`
+
+##### 5. Subword Tokenization (Byte Pair Encoding - BPE)
+Instead of storing full words, break words into common subword parts.   
+`tokenizers::tokenize_words()`
 
 ## Task 3 - Modeling
 
