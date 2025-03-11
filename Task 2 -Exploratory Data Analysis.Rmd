@@ -15,16 +15,22 @@ library(stringr) ## read lines, count words
 # Function to load saved R objects from a .RData file if the file exists
 loadObjects <- function(fileName) {
   # Append ".RData" extension to the filename
-  fileName <- paste0(fileName, ".RData")
+  filePath <- file.path("cache", paste0(fileName, ".RData"))
   
   # Check if the file exists before attempting to load
-  if (file.exists(fileName)) {
+  if (file.exists(filePath)) {
     # Load objects into the global environment
-    load(fileName, envir = .GlobalEnv)
+    load(filePath, envir = .GlobalEnv)
   }
 }
 save_objects <- function(objects, file_name) {
-  save(list = objects, file = paste0(file_name, ".RData"))
+  if (!dir.exists("cache")) {
+    dir.create("cache", recursive = TRUE)
+  } 
+  filePath <- file.path("cache", paste0(file_name, ".RData"))
+  message(filePath)
+
+  save(list = objects, file = filePath)
 }
 # Function to format numbers with thousand separators
 format_number <- function(x) {
@@ -146,7 +152,54 @@ ggplot(head(word_freq_df, top_n), aes(x = reorder(word, -freq), y = freq)) +
 
 
 
-What are the frequencies of 2-grams and 3-grams in the dataset? 
+**What are the frequencies of 2-grams and 3-grams in the dataset?**
+```{r, warning=FALSE}
+# Convert Corpus to Plain Text
+text_clean <- sapply(corpus, as.character)
+text_clean <- paste(text_clean, collapse = " ")
+
+# Define n-gram Tokenizers
+BigramTokenizer <- function(x) {
+  unlist(lapply(ngrams(words(x), 2), paste, collapse = " "))
+}
+TrigramTokenizer <- function(x) {
+  unlist(lapply(ngrams(words(x), 3), paste, collapse = " "))
+}
+
+# Create Term-Document Matrices for Bigrams and Trigrams
+tdm_bigram <- TermDocumentMatrix(VCorpus(VectorSource(text_clean)), control = list(tokenize = BigramTokenizer))
+tdm_trigram <- TermDocumentMatrix(Corpus(VectorSource(text_clean)), control = list(tokenize = TrigramTokenizer))
+
+# Convert Matrices to Data Frames
+bigram_freq <- sort(rowSums(as.matrix(tdm_bigram)), decreasing = TRUE)
+trigram_freq <- sort(rowSums(as.matrix(tdm_trigram)), decreasing = TRUE)
+
+bigram_df <- data.frame(ngram = names(bigram_freq), freq = bigram_freq)
+trigram_df <- data.frame(ngram = names(trigram_freq), freq = trigram_freq)
+
+# --- PLOT 1: Top 20 Bigrams ---
+ggplot(head(bigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(title = "Top 20 Most Frequent Bigrams", x = "Bigrams", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# --- PLOT 2: Top 20 Trigrams ---
+ggplot(head(trigram_df, 20), aes(x = reorder(ngram, -freq), y = freq)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(title = "Top 20 Most Frequent Trigrams", x = "Trigrams", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# 
+# # --- PLOT 3: Word Cloud for Bigrams ---
+# wordcloud(words = bigram_df$ngram, freq = bigram_df$freq, min.freq = 10,
+#           max.words = 100, colors = brewer.pal(8, "Dark2"), random.order = FALSE)
+# 
+# # --- PLOT 4: Word Cloud for Trigrams ---
+# wordcloud(words = trigram_df$ngram, freq = trigram_df$freq, min.freq = 10,
+#           max.words = 100, colors = brewer.pal(8, "Set3"), random.order = FALSE)
+```
+
 
 How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%? 
 
