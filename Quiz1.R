@@ -72,3 +72,20 @@ matching_tweet <- tweets[grep("\\bbiostats\\b", tweets)]
 
 # Print the result
 print(matching_tweet)
+
+
+#6
+# How many tweets have the exact characters "A computer once beat me at chess, but it was no match for me at kickboxing". 
+# (I.e. the line matches those characters exactly.)
+file_path <- paste0(folder_path,"en_US.twitter.txt")
+# Open the file and read all lines
+tweets <- readLines(file_path, warn = FALSE)
+
+# Define the exact phrase
+search_phrase <- "A computer once beat me at chess, but it was no match for me at kickboxing"
+
+# Count occurrences of the phrase (partial match)
+match_count <- sum(grepl(search_phrase, tweets, fixed = TRUE))
+
+# Print result
+print(match_count)

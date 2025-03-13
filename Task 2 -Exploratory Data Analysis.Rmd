@@ -245,7 +245,7 @@ drawCloud(trigram_df)
 
 To determine how many unique words are needed to cover 50% and 90% of all word instances in the dataset, we need to:
 
- - We'll use word frequency table from the corpus.
+ - Use word frequency table from the corpus.
  - Sort words by frequency in descending order.
  - Calculate cumulative word coverage to find the smallest set of words that make up 50% and 90% of total word occurrences.
 
