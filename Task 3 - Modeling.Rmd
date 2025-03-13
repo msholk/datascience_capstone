@@ -9,6 +9,7 @@ date: "`r Sys.Date()`"
 knitr::opts_chunk$set(echo = TRUE)
 library(knitr)
 library(kableExtra)
+library(tidyr)
 ```
 ```{r Cache_functions, echo=FALSE}
 # Function to load saved R objects from a .RData file if the file exists
@@ -51,7 +52,7 @@ This is the first step in building a predictive text mining application.
 
 **Tasks to accomplish**
 
- 1. Build basic n-gram model - using the exploratory analysis In Task2, build a basic 
+ 1. Build basic n-gram model - using the Exploratory Analysis(Previous exercise), build a basic 
 n-gram model for predicting the next word based on the previous 1, 2, or 3 words.
  2. Build a model to handle unseen n-grams - in some cases people will want to type a combination of words that does not appear in the corpora.
  3.  Build a model to handle cases where a particular n-gram isn't observed.
@@ -103,98 +104,175 @@ library(quanteda)
 # Load text data
 loadObjects("text_data")
 text_data <- head(text_data)  # Take first few lines
-# Fix missing sentence endings
-text_data <- ifelse(grepl("[.!?]$", text_data), text_data, paste0(text_data, "."))
-# Ensure each sentence has boundaries markers**
-text_data <- paste("<s>", text_data, "</s>")  # Add markers
-# Join all text into a single string (to preserve sentence structure)
-text_data <- paste(text_data, collapse = " ")
-# Tokenize sentences first (preserve sentence boundaries)
-tokens_sentences <- tokens(text_data, what = "sentence")
-
-# Convert sentence tokens into a character vector
-sentences_text <- as.character(tokens_sentences)
-# Tokenize words within each sentence
-tokens_words <- tokens(sentences_text, what = "word", remove_punct = FALSE)
-
-# Remove punctuation after word tokenization
-tokens_clean <- tokens_remove(tokens_words, pattern = "[[:punct:]]", padding = FALSE)
-# Convert all tokens to lowercase
-tokens_clean <- tokens_tolower(tokens_clean)
-
-# Convert the final cleaned tokens into a list for inspection
-tokens_list <- as.list(tokens_clean)
-# We keep punctuation so the model can predict sentence endings
-
-tokens_df <- data.frame(tokens = unlist(tokens_clean))
-head(tokens_df)
 ```
+<div style="font-size: 10px;">
+`r paste(head(text_data), collapse = "\n\n")``
+</div>
+
+```{r, message=FALSE, warning=FALSE}
+text_data <- tolower(text_data)
+text_data <- gsub("[.!?]", "✔", text_data)
+text_data <- paste0(text_data, "✔")
+# Join all text into a single string
+text_data <- paste(text_data, collapse = " ")
+
+# Remove punctuation during word tokenization
+tokens_words <- tokens(text_data, what = "word", remove_punct = TRUE)  
+```
+
+
 
 
 #### Step 2: Generate bigrams- trigrams- and 4-gram
 ```{r Generate bigrams- trigrams- and 4-gram, message=FALSE}
-library(dplyr)  # Load the package
+library(dplyr)  
 
-# 1️⃣ **Fix missing sentence endings**
-text_data <- ifelse(grepl("[.!?]$", text_data), text_data, paste0(text_data, "."))
-
-# Join all text into a single string
-text_data <- paste(text_data, collapse = " ")
-
-# 2️⃣ **Tokenize sentences first (preserve sentence boundaries)**
-tokens_sentences <- tokens(text_data, what = "sentence")
-
-# 3️⃣ **Remove punctuation from sentences**
-tokens_sentences <- tokens_remove(tokens_sentences, pattern = "[[:punct:]]", padding = FALSE)
-
-# 4️⃣ **Tokenize words within each sentence**
-tokens_words <- tokens(text_data, what = "word", remove_punct = TRUE)  # Remove punctuation during word tokenization
-
-# 5️⃣ **Generate n-grams**
+# Generate n-gram*
 bigrams <- tokens_ngrams(tokens_words, n = 2, concatenator = " ")
 trigrams <- tokens_ngrams(tokens_words, n = 3, concatenator = " ")
 fourgrams <- tokens_ngrams(tokens_words, n = 4, concatenator = " ")
+```
 
-# 6️⃣ **Convert to frequency tables**
+#### Step 3: Build a Frequency Table
+ - Count the occurrences of each n-gram
+ - Store them in a sorted order (most frequent first)
+
+```{r}
+# *Convert to frequency table
 bigram_freq <- table(unlist(bigrams))
 trigram_freq <- table(unlist(trigrams))
 fourgram_freq <- table(unlist(fourgrams))
 
-# 7️⃣ **Convert to data frames and sort by frequency**
+# Convert to data frames and sort by frequency
 bigram_df <- as.data.frame(bigram_freq, stringsAsFactors = FALSE) %>%
-  rename(ngram = Var1, frequency = Freq) 
+  rename(ngram = Var1, frequency = Freq) %>% 
+  filter(!grepl("✔", ngram, fixed = TRUE)) %>%
+  separate(ngram, 
+           into = c("word1", "word2"), sep = " ", remove = FALSE, extra = "merge")  %>%
+  arrange(desc(frequency))
+
 
 trigram_df <- as.data.frame(trigram_freq, stringsAsFactors = FALSE) %>%
-  rename(ngram = Var1, frequency = Freq)  
+  rename(ngram = Var1, frequency = Freq)  %>% 
+  filter(!grepl("✔", ngram, fixed = TRUE))  %>%
+  separate(ngram, 
+           into = c("word1", "word2", "word3"), sep = " ", remove = FALSE, extra = "merge")  %>%
+  select(-ngram) %>%
+  arrange(desc(frequency))
 
 fourgram_df <- as.data.frame(fourgram_freq, stringsAsFactors = FALSE) %>%
-  rename(ngram = Var1, frequency = Freq) 
-
-# Print the top n-grams
-cat("Top Bigrams:\n")
-print(head(bigram_df, 10))
-
-cat("\nTop Trigrams:\n")
-print(head(trigram_df, 10))
-
-cat("\nTop 4-grams:\n")
-print(head(fourgram_df, 10))
+  rename(ngram = Var1, frequency = Freq)%>% 
+  filter(!grepl("✔", ngram, fixed = TRUE)) %>%
+  separate(ngram, 
+           into = c("word1", "word2", "word3", "word4"), sep = " ", remove = FALSE, extra = "merge")  %>%
+  select(-ngram) %>%
+  arrange(desc(frequency))
 ```
 
 
+```{r, echo=FALSE}
+# Print the top n-grams
+cat("Top Bigrams:")
+print(head(bigram_df))
 
-Generate n-grams
+cat("Top Trigrams:")
+print(head(trigram_df))
 
-Create bigrams, trigrams, and 4-grams
-Preserve sentence boundaries to prevent incorrect word associations
-3 Build a Frequency Table
+cat("Top 4-grams:")
+print(head(fourgram_df))
+```
 
-Count the occurrences of each n-gram
-Store them in a sorted order (most frequent first)
-4 Prepare Data for Prediction
+We can observe that at text_data[6] begins with **"Parents"** and text_data[5] ends with **"you"**. 
+Lets's check that no bigram is there like "you"-"parents". Thus the predictions will not cross the sentence boundaries.
+
+```{r}
+filtered_df <- bigram_df %>% 
+  filter(grepl("parents", ngram, ignore.case = TRUE))
+
+print(filtered_df)
+```
+
+#### Step 4: Prepare Data for Prediction
 
 Convert the n-grams into a lookup table
 Allow searching for most likely next words based on previous words
 
 
+```{r}
+bigram_predict_next_word <- function(word1, top_n = 3) {
+  # Ensure input words are lowercase for consistency
+  word1 <- tolower(word1)
+
+  # Filter the trigram table for matches
+  suggestions <- bigram_df %>%
+    filter(word1 == !!word1)
+  
+  # Check if any results are found before proceeding
+  if (nrow(suggestions) == 0) {
+    return("No suggestions found.")
+  }
+  
+  # Select top predictions and extract the next word (word3)
+  suggestions <- suggestions %>%
+    arrange(desc(frequency)) %>%
+    slice_head(n = top_n) %>%
+    select(word2) %>%
+    pull()
+
+  return(suggestions)
+}
+trigram_predict_next_word <- function(word1, word2, top_n = 3) {
+  # Ensure input words are lowercase for consistency
+  word1 <- tolower(word1)
+  word2 <- tolower(word2)
+  
+  # Filter the trigram table for matches
+  suggestions <- trigram_df %>%
+    filter(word1 == !!word1 & word2 == !!word2)
+  
+  # Check if any results are found before proceeding
+  if (nrow(suggestions) == 0) {
+    return("No suggestions found.")
+  }
+  
+  # Select top predictions and extract the next word (word3)
+  suggestions <- suggestions %>%
+    arrange(desc(frequency)) %>%
+    slice_head(n = top_n) %>%
+    select(word3) %>%
+    pull()
+
+  return(suggestions)
+}
+fourgram_predict_next_word <- function(word1, word2, word3, top_n = 3) {
+  # Ensure input words are lowercase for consistency
+  word1 <- tolower(word1)
+  word2 <- tolower(word2)
+  word3 <- tolower(word3)
+  
+  # Filter the trigram table for matches
+  suggestions <- trigram_df %>%
+    filter(word1 == !!word1 & word2 == !!word2 & word3 == !!word3)
+  
+  # Check if any results are found before proceeding
+  if (nrow(suggestions) == 0) {
+    return("No suggestions found.")
+  }
+  
+  # Select top predictions and extract the next word (word3)
+  suggestions <- suggestions %>%
+    arrange(desc(frequency)) %>%
+    slice_head(n = top_n) %>%
+    select(word4) %>%
+    pull()
+
+  return(suggestions)
+}
+```
+Now let's suggest a predictions for trigram "a foreign":
+
+```{r}
+predicted_words <- trigram_predict_next_word("a", "foreign")
+print(predicted_words)
+```
 
