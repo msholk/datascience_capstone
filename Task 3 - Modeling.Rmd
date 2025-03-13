@@ -95,52 +95,106 @@ n-gram model for predicting the next word based on the previous 1, 2, or 3 words
 ### Task 1. Building a Basic N-Gram Model for Predictive Text
 The goal of this task is to create an n-gram model that predicts the next word based on the previous 1, 2, or 3 words. 
 
-```{r}
-# Load necessary libraries
-# Load necessary libraries
+#### Step 1: Tokenize text while preserving the sentence boundaries.
+
+```{r, message=FALSE, warning=FALSE}
 library(quanteda)
 
 # Load text data
 loadObjects("text_data")
 text_data <- head(text_data)  # Take first few lines
-print(text_data)
+# Fix missing sentence endings
+text_data <- ifelse(grepl("[.!?]$", text_data), text_data, paste0(text_data, "."))
+# Ensure each sentence has boundaries markers**
+text_data <- paste("<s>", text_data, "</s>")  # Add markers
+# Join all text into a single string (to preserve sentence structure)
+text_data <- paste(text_data, collapse = " ")
+# Tokenize sentences first (preserve sentence boundaries)
+tokens_sentences <- tokens(text_data, what = "sentence")
+
+# Convert sentence tokens into a character vector
+sentences_text <- as.character(tokens_sentences)
+# Tokenize words within each sentence
+tokens_words <- tokens(sentences_text, what = "word", remove_punct = FALSE)
+
+# Remove punctuation after word tokenization
+tokens_clean <- tokens_remove(tokens_words, pattern = "[[:punct:]]", padding = FALSE)
+# Convert all tokens to lowercase
+tokens_clean <- tokens_tolower(tokens_clean)
+
+# Convert the final cleaned tokens into a list for inspection
+tokens_list <- as.list(tokens_clean)
+# We keep punctuation so the model can predict sentence endings
+
+tokens_df <- data.frame(tokens = unlist(tokens_clean))
+head(tokens_df)
+```
+
+
+#### Step 2: Generate bigrams- trigrams- and 4-gram
+```{r Generate bigrams- trigrams- and 4-gram, message=FALSE}
+library(dplyr)  # Load the package
 
 # 1️⃣ **Fix missing sentence endings**
 text_data <- ifelse(grepl("[.!?]$", text_data), text_data, paste0(text_data, "."))
 
-# 2️⃣ **Join all text into a single string (to preserve sentence structure)**
+# Join all text into a single string
 text_data <- paste(text_data, collapse = " ")
 
-# 3️⃣ **Tokenize sentences first (preserve sentence boundaries)**
+# 2️⃣ **Tokenize sentences first (preserve sentence boundaries)**
 tokens_sentences <- tokens(text_data, what = "sentence")
 
-# 4️⃣ **Convert sentence tokens into a character vector**
-sentences_text <- as.character(tokens_sentences)
+# 3️⃣ **Remove punctuation from sentences**
+tokens_sentences <- tokens_remove(tokens_sentences, pattern = "[[:punct:]]", padding = FALSE)
 
-# 5️⃣ **Tokenize words within each sentence**
-tokens_words <- tokens(sentences_text, what = "word", remove_punct = FALSE)
+# 4️⃣ **Tokenize words within each sentence**
+tokens_words <- tokens(text_data, what = "word", remove_punct = TRUE)  # Remove punctuation during word tokenization
 
-# 6️⃣ **Remove punctuation after word tokenization**
-tokens_clean <- tokens_remove(tokens_words, pattern = "[[:punct:]]", padding = FALSE)
+# 5️⃣ **Generate n-grams**
+bigrams <- tokens_ngrams(tokens_words, n = 2, concatenator = " ")
+trigrams <- tokens_ngrams(tokens_words, n = 3, concatenator = " ")
+fourgrams <- tokens_ngrams(tokens_words, n = 4, concatenator = " ")
 
-# Convert all tokens to lowercase
-tokens_clean <- tokens_tolower(tokens_clean)
+# 6️⃣ **Convert to frequency tables**
+bigram_freq <- table(unlist(bigrams))
+trigram_freq <- table(unlist(trigrams))
+fourgram_freq <- table(unlist(fourgrams))
 
-# 7️⃣ **Convert the final cleaned tokens into a list for inspection**
-tokens_list <- as.list(tokens_clean)
+# 7️⃣ **Convert to data frames and sort by frequency**
+bigram_df <- as.data.frame(bigram_freq, stringsAsFactors = FALSE) %>%
+  rename(ngram = Var1, frequency = Freq) 
 
-# We keep punctuation so the model can predict sentence endings.
+trigram_df <- as.data.frame(trigram_freq, stringsAsFactors = FALSE) %>%
+  rename(ngram = Var1, frequency = Freq)  
 
-# Optionally view tokens in a table
-tokens_df <- data.frame(tokens = unlist(tokens_clean))
-View(tokens_df)
+fourgram_df <- as.data.frame(fourgram_freq, stringsAsFactors = FALSE) %>%
+  rename(ngram = Var1, frequency = Freq) 
 
+# Print the top n-grams
+cat("Top Bigrams:\n")
+print(head(bigram_df, 10))
 
+cat("\nTop Trigrams:\n")
+print(head(trigram_df, 10))
+
+cat("\nTop 4-grams:\n")
+print(head(fourgram_df, 10))
 ```
 
 
 
+Generate n-grams
 
+Create bigrams, trigrams, and 4-grams
+Preserve sentence boundaries to prevent incorrect word associations
+3 Build a Frequency Table
+
+Count the occurrences of each n-gram
+Store them in a sorted order (most frequent first)
+4 Prepare Data for Prediction
+
+Convert the n-grams into a lookup table
+Allow searching for most likely next words based on previous words
 
 
 
