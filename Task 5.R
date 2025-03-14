@@ -1,0 +1,118 @@
+library(tm)
+library(text2vec)
+library(stopwords)
+
+dir <- "Coursera-SwiftKey/final/en_US"  # Directory containing the files
+filelist <- list.files(dir, full.names = TRUE)  # Get full file paths
+
+# Read all files and combine into one text data variable
+text_data <- unlist(lapply(filelist, function(file) {
+  readLines(file, warn = FALSE, encoding = "UTF-8")  # Read each file
+}))
+
+# Create a Corpus
+corpus <- Corpus(VectorSource(text_data))
+
+# Apply Text Transformations
+corpus <- tm_map(corpus, content_transformer(tolower))       # Convert to lowercase
+corpus <- tm_map(corpus, removePunctuation)                  # Remove punctuation
+corpus <- tm_map(corpus, removeNumbers)                      # Remove numbers
+corpus <- tm_map(corpus, removeWords, stopwords("en"))       # Remove stopwords
+corpus <- tm_map(corpus, stripWhitespace)                    # Remove extra whitespace
+
+# Extract processed text
+preprocessed_text <- sapply(corpus, as.character, USE.NAMES = FALSE)
+
+# Tokenize text properly
+tokens <- word_tokenizer(preprocessed_text)
+
+# Create an iterator over tokens
+it <- itoken(tokens, progressbar = FALSE)
+
+# Create a vocabulary
+vocab <- create_vocabulary(it)
+
+# Prune vocabulary to remove rare words (adjust the threshold as needed)
+vocab <- prune_vocabulary(vocab, term_count_min = 5)  
+
+# Create a vectorizer
+vectorizer <- vocab_vectorizer(vocab)
+
+# Create a term-cooccurrence matrix (TCM)
+tcm <- create_tcm(it, vectorizer, skip_grams_window = 5L)
+
+# Train the GloVe Model
+glove <- GlobalVectors$new(
+  rank = 100,     # Word vector size
+  x_max = 10      # Parameter for weighting function
+)
+
+# Train word vectors
+word_vectors_main <- glove$fit_transform(tcm, n_iter = 10)
+
+# Obtain final word embeddings by combining context word vectors
+word_vectors_context <- glove$components
+word_vectors <- word_vectors_main + t(word_vectors_context)
+
+# Display the trained word embeddings
+head(word_vectors)
+
+
+# Function to compute cosine similarity
+cosine_similarity <- function(vec1, vec2) {
+  sum(vec1 * vec2) / (sqrt(sum(vec1^2)) * sqrt(sum(vec2^2)))
+}
+
+# Function to find nearest neighbors
+find_nearest_neighbors <- function(word_vectors, target_word, top_n = 5) {
+  if (!(target_word %in% rownames(word_vectors))) {
+    stop("Word not found in vocabulary!")
+  }
+  
+  # Get the vector for the target word
+  target_vector <- word_vectors[target_word, , drop = FALSE]
+  
+  # Compute cosine similarity with all other words
+  similarities <- apply(word_vectors, 1, function(vec) cosine_similarity(target_vector, vec))
+  
+  # Sort words by similarity (descending order)
+  nearest_words <- sort(similarities, decreasing = TRUE)[2:(top_n + 1)]
+  
+  return(data.frame(Word = names(nearest_words), Similarity = nearest_words))
+}
+
+# Example: Find 5 words most similar to "dog"
+similar_words <- find_nearest_neighbors(word_vectors, "dog", top_n = 5)
+print(similar_words)
+
+#########################################################################################
+# Function to get the sentence embedding (average of word vectors)
+sentence_embedding <- function(sentence, word_vectors) {
+  words <- unlist(strsplit(sentence, " "))  # Tokenize sentence
+  words <- words[words %in% rownames(word_vectors)]  # Keep words in vocabulary
+  if (length(words) == 0) return(NULL)  # If no words exist in embeddings, return NULL
+  return(colMeans(word_vectors[words, , drop = FALSE]))  # Average of word vectors
+}
+
+# Function to predict the most probable next word
+predict_next_word <- function(sentence, candidates, word_vectors) {
+  sentence_vec <- sentence_embedding(sentence, word_vectors)
+  
+  if (is.null(sentence_vec)) stop("No valid words found in vocabulary!")
+  
+  # Compute cosine similarity with each candidate
+  similarities <- sapply(candidates, function(word) {
+    if (!(word %in% rownames(word_vectors))) return(NA)  # Skip words not in vocabulary
+    cosine_similarity(sentence_vec, word_vectors[word, , drop = FALSE])
+  })
+  
+  # Return the word with highest similarity
+  best_word <- names(sort(similarities, decreasing = TRUE, na.last = TRUE))[1]
+  return(best_word)
+}
+
+#1 Candidate words
+candidates <- c("eat", "sleep", "give", "die")
+
+# Predict the best next word
+predict_next_word("live and I'd", candidates, word_vectors)

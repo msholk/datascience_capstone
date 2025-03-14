@@ -55,8 +55,7 @@ This is the first step in building a predictive text mining application.
  1. Build basic n-gram model - using the Exploratory Analysis(Previous exercise), build a basic 
 n-gram model for predicting the next word based on the previous 1, 2, or 3 words.
  2. Build a model to handle unseen n-grams - in some cases people will want to type a combination of words that does not appear in the corpora.
- 3.  Build a model to handle cases where a particular n-gram isn't observed.
-
+ 
 **Questions to consider**
 
  1. How can you efficiently store an n-gram model (think Markov Chains)?
@@ -103,7 +102,7 @@ library(quanteda)
 
 # Load text data
 loadObjects("text_data")
-text_data <- head(text_data)  # Take first few lines
+# text_data <- head(text_data)  # Take first few lines
 ```
 <div style="font-size: 10px;">
 `r paste(head(text_data), collapse = "\n\n")``
@@ -124,26 +123,75 @@ tokens_words <- tokens(text_data, what = "word", remove_punct = TRUE)
 
 
 #### Step 2: Generate bigrams- trigrams- and 4-gram
-```{r Generate bigrams- trigrams- and 4-gram, message=FALSE}
+```{r Prepare parrallel process, message=FALSE}
 library(dplyr)  
+library(doParallel)
+# Initialize parallel cluster
+parallelCluster <- NULL
 
-# Generate n-gram*
-bigrams <- tokens_ngrams(tokens_words, n = 2, concatenator = " ")
-trigrams <- tokens_ngrams(tokens_words, n = 3, concatenator = " ")
-fourgrams <- tokens_ngrams(tokens_words, n = 4, concatenator = " ")
+# Function to stop the parallel cluster
+stopParallelCluster <- function() {
+  if (!is.null(parallelCluster)) {
+    stopCluster(parallelCluster)  # Stop the parallel cluster
+    registerDoSEQ()  # Reset to sequential execution
+    parallelCluster <<- NULL  # Clear the global cluster variable
+  }
+}
+
+# Function to prepare the parallel cluster
+prepareParallelCluster <- function() {
+  num_cores <- max(detectCores() - 1, 1)  # Use all cores except one
+  parallelCluster <<- makeCluster(num_cores)
+  registerDoParallel(parallelCluster)
+}
+
+# Measure execution time
+
+
 ```
+
+Parallel execution using foreach
+```{r Generate bigrams- trigrams- and 4-gram, message=FALSE}
+prepareParallelCluster()
+start_time <- proc.time()
+n_values <- c(2, 3, 4)  # Bigram, Trigram, Fourgram
+ngrams_list <- vector("list", length(n_values))
+ngrams_list <- foreach(i = seq_along(n_values), 
+                        .combine = "c", 
+                        .packages = "quanteda") %dopar% {
+  result <- tokens_ngrams(tokens_words, n = n_values[i], concatenator = " ")
+  if (length(result) == 0) list(NA) else as.list(result)
+}
+execution_time <- proc.time() - start_time
+stopParallelCluster()
+execution_time
+```
+
+
+```{r Retrieve n-grams, message=FALSE}
+
+# Extract results
+bigrams   <- unlist(ngrams_list[[1]], recursive = TRUE, use.names = FALSE)
+trigrams  <- unlist(ngrams_list[[2]], recursive = TRUE, use.names = FALSE)
+fourgrams <- unlist(ngrams_list[[3]], recursive = TRUE, use.names = FALSE)
+```
+
+
+
 
 #### Step 3: Build a Frequency Table
  - Count the occurrences of each n-gram
  - Store them in a sorted order (most frequent first)
 
-```{r}
-# *Convert to frequency table
+ Convert to frequency table 
+```{r  Convert to frequency table}
 bigram_freq <- table(unlist(bigrams))
 trigram_freq <- table(unlist(trigrams))
 fourgram_freq <- table(unlist(fourgrams))
+```
 
-# Convert to data frames and sort by frequency
+Convert to data frames and sort by frequency
+```{r Convert to data frames and sort by frequency}
 bigram_df <- as.data.frame(bigram_freq, stringsAsFactors = FALSE) %>%
   rename(ngram = Var1, frequency = Freq) %>% 
   filter(!grepl("✔", ngram, fixed = TRUE)) %>%
@@ -203,7 +251,7 @@ bigram_predict_next_word <- function(word1, top_n = 3) {
   # Ensure input words are lowercase for consistency
   word1 <- tolower(word1)
 
-  # Filter the trigram table for matches
+  # Filter the 2gram table for matches
   suggestions <- bigram_df %>%
     filter(word1 == !!word1)
   
@@ -250,8 +298,8 @@ fourgram_predict_next_word <- function(word1, word2, word3, top_n = 3) {
   word2 <- tolower(word2)
   word3 <- tolower(word3)
   
-  # Filter the trigram table for matches
-  suggestions <- trigram_df %>%
+  # Filter the 4gram table for matches
+  suggestions <- fourgram_df %>%
     filter(word1 == !!word1 & word2 == !!word2 & word3 == !!word3)
   
   # Check if any results are found before proceeding
@@ -274,5 +322,90 @@ Now let's suggest a predictions for trigram "a foreign":
 ```{r}
 predicted_words <- trigram_predict_next_word("a", "foreign")
 print(predicted_words)
+```
+
+### Task 2. Handle unseen n-gram
+Build a model to handle unseen n-grams - in some cases people will want to type a combination of words that does not appear in the corpora.
+To handle unseen n-grams, we can build a backoff model that:
+
+ 1. Uses trigrams if available
+ 2. Falls back to bigrams if no trigram is found
+ 3. Falls back to unigrams if no bigram is found
+ 4. Provides a default suggestion if nothing is found
+ 
+ 
+```{r}
+ngram_predict_next_word <- function(text, top_n = 3) {
+  words <- unlist(strsplit(tolower(text), " "))
+  word1 <- ifelse(length(words) >= 1, words[1], "")
+  word2 <- ifelse(length(words) >= 2, words[2], "")
+  word3 <- ifelse(length(words) >= 3, words[3], "")
+  
+  
+  # Filter the 4gram table for matches
+  suggestions <- fourgram_df %>%
+    filter(word1 == !!word1 & word2 == !!word2 & word3 == !!word3)
+  
+  # Check if any results are found before proceeding
+  if (nrow(suggestions) > 0) {
+     suggestions <- suggestions %>%
+      arrange(desc(frequency)) %>%
+      slice_head(n = top_n) 
+  
+    return(suggestions)
+  }
+  
+  word1 <- word2
+  word2 <- word3
+  # Filter the 3gram table for matches
+  suggestions <- trigram_df %>%
+    filter(word1 == !!word1 & word2 == !!word2)
+  
+  # Check if any results are found before proceeding
+  if (nrow(suggestions) > 0) {
+    # Select top predictions and extract the next word (word3)
+    suggestions <- suggestions %>%
+      arrange(desc(frequency)) %>%
+      slice_head(n = top_n)
+  
+    return(suggestions)
+    
+  }
+  
+  word1 <- word2
+  # Filter the 2gram table for matches
+  suggestions <- bigram_df %>%
+    filter(word1 == !!word1)
+  
+  # Check if any results are found before proceeding
+  if (nrow(suggestions) > 0) {
+    # Select top predictions and extract the next word (word3)
+    suggestions <- suggestions %>%
+      arrange(desc(frequency)) %>%
+      slice_head(n = top_n)
+  
+    return(suggestions)
+  }
+  return("No suggestions found.")
+}
+
+ngram_predict_next_word("a case of")
+```
+ 
+
+
+```{r}
+
+ngram_predict_next_word("a case of")
+ngram_predict_next_word("would mean the")
+ngram_predict_next_word("make me the")
+ngram_predict_next_word("struggling but the")
+ngram_predict_next_word("date at the")
+ngram_predict_next_word("be on my")
+ngram_predict_next_word("in quite some")
+ngram_predict_next_word("with his little")
+ngram_predict_next_word("faith during the")
+ngram_predict_next_word("you must be")
+
 ```
 
