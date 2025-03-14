@@ -111,8 +111,47 @@ predict_next_word <- function(sentence, candidates, word_vectors) {
   return(best_word)
 }
 
+
+
+
 #1 Candidate words
 candidates <- c("eat", "sleep", "give", "die")
 
 # Predict the best next word
 predict_next_word("live and I'd", candidates, word_vectors)
+
+#2 Candidate words
+candidates <- c("horticultural", "marital", "financial", "spiritual")
+
+# Predict the best next word
+predict_next_word("I asked about dessert and he started telling me about his", candidates, word_vectors)
+
+
+candidates <- c("decade", "morning", "weekend", "month")
+predict_next_word("I'd give anything to see Arctic Monkeys this", candidates, word_vectors)
+
+candidates <- c("happiness", "hunger", "sleepiness", "stress")
+predict_next_word("Talking to your mom has the same effect as a hug and helps reduce your", candidates, word_vectors)
+
+candidates <- c("minute", "look", "picture", "walk")
+predict_next_word("When you were in Holland you were like 1 inch away from me but you hadn't time to take a", candidates, word_vectors)
+
+candidates <- c("case", "incident", "account", "matter")
+predict_next_word("I'd just like all of these questions answered, a presentation of evidence, and a jury to settle the", candidates, word_vectors)
+
+candidates <- c("arm", "hand", "toe", "finger")
+predict_next_word("I can't deal with unsymmetrical things. I can't even hold an uneven number of bags of groceries in each", candidates, word_vectors)
+
+candidates <- c("middle", "side", "top", "center")
+predict_next_word("Every inch of you is perfect from the bottom to the", candidates, word_vectors)
+
+candidates <- c("weekly", "daily", "inside", "outside")
+predict_next_word("I’m thankful my childhood was filled with imagination and bruises from playing", candidates, word_vectors)
+
+candidates <- c("novels", "pictures", "stories", "movies")
+predict_next_word("I like how the same people are in almost all of Adam Sandler's", candidates, word_vectors)
+
+saveRDS(word_vectors, file = "trained_model.rds")
+word_vectors <- readRDS("trained_model.rds")
+
+
